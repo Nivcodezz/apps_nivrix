@@ -5,20 +5,241 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NivrixApps</title>
 
-<link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+
+<style>
+:root{
+  --main:#6A0DAD;
+  --grad:linear-gradient(135deg,#6A0DAD,#8A2BE2);
+}
+
+body{
+  margin:0;
+  font-family:sans-serif;
+  background:#f0f0f5;
+}
+
+/* HEADER */
+header{
+  background:var(--grad);
+  color:white;
+  padding:15px;
+  font-size:20px;
+  text-align:center;
+}
+
+/* SEARCH */
+.search{
+  padding:10px;
+}
+.search input{
+  width:100%;
+  padding:10px;
+  border-radius:20px;
+  border:none;
+  outline:none;
+}
+
+/* CATEGORY */
+.categories{
+  display:flex;
+  overflow:auto;
+  padding:10px;
+}
+.cat{
+  background:white;
+  margin-right:8px;
+  padding:8px 15px;
+  border-radius:20px;
+  box-shadow:0 2px 5px rgba(0,0,0,0.1);
+  cursor:pointer;
+}
+
+/* GRID */
+.grid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:12px;
+  padding:10px;
+}
+
+/* CARD */
+.card{
+  background:white;
+  border-radius:15px;
+  overflow:hidden;
+  box-shadow:0 4px 12px rgba(0,0,0,0.1);
+  transform:scale(0.98);
+  transition:0.2s;
+}
+.card:hover{
+  transform:scale(1);
+}
+.card img{
+  width:100%;
+  height:130px;
+  object-fit:cover;
+}
+.card-body{
+  padding:10px;
+}
+.card-body b{
+  font-size:14px;
+}
+.card-body p{
+  font-size:12px;
+  color:gray;
+}
+
+/* BUTTON */
+.btn{
+  background:var(--grad);
+  color:white;
+  padding:6px;
+  text-align:center;
+  border-radius:8px;
+  margin-top:6px;
+  cursor:pointer;
+}
+
+/* DETAIL */
+.detail{
+  padding:15px;
+  animation:fade 0.3s;
+}
+@keyframes fade{
+  from{opacity:0; transform:translateY(10px)}
+  to{opacity:1; transform:translateY(0)}
+}
+
+button{
+  width:100%;
+  padding:12px;
+  background:var(--grad);
+  border:none;
+  color:white;
+  border-radius:10px;
+}
+
+/* BANNER */
+.banner{
+  margin:10px;
+  padding:20px;
+  border-radius:15px;
+  background:var(--grad);
+  color:white;
+}
+</style>
 </head>
 
 <body>
 
-<header>
-  <h1>NivrixApps</h1>
-</header>
+<header>NivrixApps</header>
 
-<div class="grid" id="apps">
-  Loading...
+<div class="search">
+  <input type="text" id="search" placeholder="Cari aplikasi...">
 </div>
 
-<script src="script.js"></script>
+<div class="banner">
+  🔥 Aplikasi & Game Premium Gratis
+</div>
+
+<div class="categories">
+  <div class="cat" onclick="filterCat('All')">All</div>
+  <div class="cat" onclick="filterCat('Apps')">Apps</div>
+  <div class="cat" onclick="filterCat('Games')">Games</div>
+  <div class="cat" onclick="filterCat('Mods')">Mods</div>
+</div>
+
+<div class="grid" id="apps"></div>
+
+<script>
+// 🔑 SUPABASE
+const supabase = window.supabase.createClient(
+  "https://vnbnilagdulhwfekcxkh.supabase.co",
+  "sb_publishable_3skPZ2D5nVd49Utq1zlIJA_DuyaW7kX"
+);
+
+let allApps = [];
+
+async function loadApps(){
+  const {data} = await supabase.from("apps").select("*");
+  allApps = data;
+  renderApps(data);
+}
+
+function renderApps(data){
+  const el = document.getElementById("apps");
+  el.innerHTML = "";
+
+  data.forEach(app=>{
+    el.innerHTML += `
+    <div class="card" onclick="openDetail('${app.id}')">
+      <img src="${app.image_url}">
+      <div class="card-body">
+        <b>${app.name}</b>
+        <p>⬇ ${app.downloads_count} | 👁 ${app.views_count}</p>
+      </div>
+    </div>
+    `;
+  });
+}
+
+// SEARCH
+document.getElementById("search").oninput = function(){
+  let val = this.value.toLowerCase();
+  let filtered = allApps.filter(a=>a.name.toLowerCase().includes(val));
+  renderApps(filtered);
+}
+
+// CATEGORY
+function filterCat(cat){
+  if(cat=="All") return renderApps(allApps);
+  let filtered = allApps.filter(a=>a.category==cat);
+  renderApps(filtered);
+}
+
+// DETAIL
+async function openDetail(id){
+  const {data} = await supabase.from("apps").select("*").eq("id",id).single();
+
+  await supabase.rpc("add_view",{app_id:id}).catch(async()=>{
+    await supabase.from("apps").update({views_count:data.views_count+1}).eq("id",id);
+  });
+
+  document.body.innerHTML = `
+  <div class="detail">
+    <h2>${data.name}</h2>
+    <img src="${data.image_url}" style="width:100%;border-radius:12px">
+
+    <p>${data.description}</p>
+
+    <p><b>Versi:</b> ${data.version}</p>
+    <p><b>Size:</b> ${data.size}</p>
+
+    <p>👁 ${data.views_count+1} | ⬇ ${data.downloads_count}</p>
+
+    <button onclick="downloadApp('${data.id}','${data.download_link}',${data.downloads_count})">
+      Download
+    </button>
+
+    <br><br>
+    <button onclick="location.reload()">Kembali</button>
+  </div>
+  `;
+}
+
+// DOWNLOAD
+async function downloadApp(id,link,count){
+  await supabase.rpc("add_download",{app_id:id}).catch(async()=>{
+    await supabase.from("apps").update({downloads_count:count+1}).eq("id",id);
+  });
+
+  window.location.href = link;
+}
+
+loadApps();
+</script>
+
 </body>
 </html>
